@@ -23,7 +23,7 @@ import java.io.File;
 public class NPMMojo extends AbstractJavascriptMojo {
 
     /**
-     * Where the resulting files will be downloaded.
+     * Where the resulting js files will be staged.
      *
      * @parameter expression="${recess.outputDirectory}" default-value="${basedir}/src/main/resources/META-INF"
      */

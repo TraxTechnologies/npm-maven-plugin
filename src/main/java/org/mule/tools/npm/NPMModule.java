@@ -10,6 +10,7 @@ package org.mule.tools.npm;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.apache.commons.io.FileUtils;
@@ -21,10 +22,10 @@ import org.codehaus.plexus.archiver.tar.TarGZipUnArchiver;
 import org.mule.tools.npm.version.VersionResolver;
 
 import java.io.*;
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
+import java.net.*;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,7 @@ import java.util.Set;
 
 public class NPMModule {
 
-    public static String npmUrl = "http://registry.npmjs.org/%s/%s";
+    public static String npmUrl = "http://npm.s03.filex.com:8080/%s/%s";
     public static Proxy proxy = null;
 
     private String name;
@@ -100,11 +101,13 @@ public class NPMModule {
     }
 
     public void saveToFile(File file) throws MojoExecutionException {
+        String fileName = name.replace("/", "_");
+
         URL dl;
         OutputStream os = null;
         InputStream is = null;
-        File outputFolderFileTmp = new File(file, name + "_tmp");
-        File outputFolderFile = new File(file, name);
+        File outputFolderFileTmp = new File(file, fileName + "_tmp");
+        File outputFolderFile = new File(file, fileName);
 
         if ( outputFolderFile.exists() ) {
             //Already downloaded nothing to do
@@ -114,7 +117,7 @@ public class NPMModule {
 
         outputFolderFileTmp.mkdirs();
 
-        File tarFile = new File(outputFolderFileTmp, name + "-" + version + ".tgz");
+        File tarFile = new File(outputFolderFileTmp, fileName + "-" + version + ".tgz");
         ProgressListener progressListener = new ProgressListener(log);
         log.debug("Downloading " + this.name + ":" + this.version);
 
@@ -177,7 +180,27 @@ public class NPMModule {
         } catch (IOException e) {
             log.info("Error while deleting temporary folder: " + outputFolderFileTmp, e);
         }
+//        final ObjectMapper mapper = new ObjectMapper();
 
+//        try {
+//            String json = readFile(outputFolderFile.getCanonicalPath() + "/package.json");
+//            final JsonNode readValue = mapper.readValue(json, JsonNode.class);
+//            String mainJsFile = readValue.get("main").asText();
+//            File jsFileToMove = new File(outputFolderFile.getCanonicalPath() + "/" + mainJsFile);
+//            log.info("Moving " + jsFileToMove.getCanonicalPath() + " to " + outDir.getCanonicalPath());
+//            FileUtils.moveFileToDirectory(jsFileToMove, outDir, true);
+//        }
+//        catch (final Exception e) {
+//            throw new MojoExecutionException(String.format("Error moving to the final folder when " +
+//                    "unpacking module %s:%s: ", name, version),e);        }
+
+    }
+
+    static String readFile(String path)
+            throws IOException
+    {
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        return new String(encoded, Charset.defaultCharset());
     }
 
     private void downloadDependencies(Map dependenciesMap) throws IOException, MojoExecutionException {
@@ -185,7 +208,7 @@ public class NPMModule {
             Map.Entry dependency = (Map.Entry) dependencyAsObject;
             String dependencyName = (String) dependency.getKey();
 
-            String version = ((String) dependency.getValue());
+            String version = ((String) dependency.getValue()).replace("^","");
 
             try {
                 version = new VersionResolver().getNextVersion(log, dependencyName, version);
@@ -199,14 +222,14 @@ public class NPMModule {
     }
 
     public static Set downloadMetadataList(String name) throws IOException, JsonParseException {
-        URL dl = new URL(String.format(npmUrl,name,""));
+        URL dl = new URL(String.format(npmUrl, URLEncoder.encode(name),""));
         ObjectMapper objectMapper = new ObjectMapper();
         Map allVersionsMetadata = objectMapper.readValue(loadTextFromUrl(dl),Map.class);
         return ((Map) allVersionsMetadata.get("versions")).keySet();
     }
 
     private Map downloadMetadata(String name, String version) throws IOException, JsonParseException {
-        return downloadMetadata(new URL(String.format(npmUrl,name,version != null ? version : "latest")));
+        return downloadMetadata(new URL(String.format(npmUrl,URLEncoder.encode(name),version != null ? version : "latest")));
     }
 
     public static Map downloadMetadata(URL dl) throws IOException {
